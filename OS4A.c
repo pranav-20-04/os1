@@ -1,130 +1,93 @@
-// C program for the above approach
+#include<iostream>
+#include<GL/glut.h>
+using namespace std;
 
-#include <stdio.h>
-#include <stdlib.h>
-
-// Initialize a mutex to 1
-int mutex = 1;
-
-// Number of full slots as 0
-int full = 0;
-
-// Number of empty slots as size
-// of buffer
-int empty = 10, x = 0;
-
-// Function to produce an item and
-// add it to the buffer
-void producer()
-{
-	// Decrease mutex value by 1
-	--mutex;
-
-	// Increase the number of full
-	// slots by 1
-	++full;
-
-	// Decrease the number of empty
-	// slots by 1
-	--empty;
-
-	// Item produced
-	x++;
-	printf("\nProducer produces"
-		"item %d",
-		x);
-
-	// Increase mutex value by 1
-	++mutex;
+void myInit() {
+    glClearColor(1.0, 1.0, 1.0, 0);
+    glColor3f(0.0, 0.0, 0.0);
+    glPointSize(1.0);
+    glMatrixMode(GL_PROJECTION);
+    gluOrtho2D(0, 640, 0, 480);
 }
 
-// Function to consume an item and
-// remove it from buffer
-void consumer()
-{
-	// Decrease mutex value by 1
-	--mutex;
-
-	// Decrease the number of full
-	// slots by 1
-	--full;
-
-	// Increase the number of empty
-	// slots by 1
-	++empty;
-	printf("\nConsumer consumes "
-		"item %d",
-		x);
-	x--;
-
-	// Increase mutex value by 1
-	++mutex;
+void boundaryFill(float x, float y, float* b, float* n) {
+    float color[3];
+    glReadPixels(x, y, 1.0, 1.0, GL_RGB, GL_FLOAT, color);
+    if ((color[0] != b[0] || color[1] != b[1] || color[2] != b[2]) && (color[0] != n[0] || color[1] != n[1] || color[2] != n[2])) {
+        glColor3f(n[0], n[1], n[2]);
+        glBegin(GL_POINTS);
+        glVertex2d(x, y);
+        glEnd();
+        glFlush();
+        if (x + 1 < 640)
+            boundaryFill(x + 1, y, b, n);
+        if (x - 1 >= 0)
+            boundaryFill(x - 1, y, b, n);
+        if (y + 1 < 480)
+            boundaryFill(x, y + 1, b, n);
+        if (y - 1 >= 0)
+            boundaryFill(x, y - 1, b, n);
+    }
 }
 
-// Driver Code
-int main()
-{
-	int n, i;
-	printf("\n1. Press 1 for Producer"
-		"\n2. Press 2 for Consumer"
-		"\n3. Press 3 for Exit");
-
-// Using '#pragma omp parallel for'
-// can give wrong value due to
-// synchronization issues.
-
-// 'critical' specifies that code is
-// executed by only one thread at a
-// time i.e., only one thread enters
-// the critical section at a given time
-#pragma omp critical
-
-	for (i = 1; i > 0; i++) {
-
-		printf("\nEnter your choice:");
-		scanf("%d", &n);
-
-		// Switch Cases
-		switch (n) {
-		case 1:
-
-			// If mutex is 1 and empty
-			// is non-zero, then it is
-			// possible to produce
-			if ((mutex == 1)
-				&& (empty != 0)) {
-				producer();
-			}
-
-			// Otherwise, print buffer
-			// is full
-			else {
-				printf("Buffer is full!");
-			}
-			break;
-
-		case 2:
-
-			// If mutex is 1 and full
-			// is non-zero, then it is
-			// possible to consume
-			if ((mutex == 1)
-				&& (full != 0)) {
-				consumer();
-			}
-
-			// Otherwise, print Buffer
-			// is empty
-			else {
-				printf("Buffer is empty!");
-			}
-			break;
-
-		// Exit Condition
-		case 3:
-			exit(0);
-			break;
-		}
-	}
+void floodFill(float x, float y, float* b, float* n) {
+    float color[3];
+    glReadPixels(x, y, 1.0, 1.0, GL_RGB, GL_FLOAT, color);
+    if (color[0] == b[0] && color[1] == b[1] && color[2] == b[2]) {
+        glColor3f(n[0], n[1], n[2]);
+        glBegin(GL_POINTS);
+        glVertex2d(x, y);
+        glEnd();
+        glFlush();
+        if (x + 1 < 640)
+            floodFill(x + 1, y, b, n);
+        if (x - 1 >= 0)
+            floodFill(x - 1, y, b, n);
+        if (y + 1 < 480)
+            floodFill(x, y + 1, b, n);
+        if (y - 1 >= 0)
+            floodFill(x, y - 1, b, n);
+    }
 }
 
+void myDisplay() {
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+    glLineWidth(3);
+    glPointSize(2);
+    glColor3f(0.0, 0.0, 0.0);
+    glBegin(GL_LINE_LOOP);
+    glVertex2d(40, 440);
+    glVertex2d(600, 440);
+    glVertex2d(600, 40);
+    glVertex2d(40, 40);
+    glEnd();
+    glFlush();
+}
+
+void mouse(int btn, int state, int x, int y) {
+    y = 480 - y;
+    if (btn == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
+        float b[] = {0, 0, 0};
+        float n[] = {1, 0, 0};
+        boundaryFill(x, y, b, n);
+    } else if (btn == GLUT_RIGHT_BUTTON && state == GLUT_DOWN) {
+        float b[3];
+        glReadPixels(x, y, 1.0, 1.0, GL_RGB, GL_FLOAT, b);
+        float n[] = {1, 0, 0};
+        floodFill(x, y, b, n);
+    }
+}
+
+int main(int argc, char** argv) {
+    cout << "Left Mouse Button: Boundary Fill Right Mouse Button: Flood Fill" << endl;
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_SINGLE | GLUT_RGB);
+    glutInitWindowSize(640, 480);
+    glutInitWindowPosition(100, 100);
+    glutCreateWindow("Filling");
+    myInit();
+    glutMouseFunc(mouse);
+    glutDisplayFunc(myDisplay);
+    glutMainLoop();
+    return 0;
+}
